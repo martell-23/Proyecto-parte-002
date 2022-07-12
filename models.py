@@ -1,13 +1,20 @@
+from email.policy import default
 from flask import jsonify
 from flask_sqlalchemy import SQLAlchemy
-
+from datetime import date
+from dotenv import load_dotenv
+from flask_jwt_extended import JWTManager
+import jwt
+load_dotenv()
 database_name='park'
-database_path='postgresql://{}@{}/{}'.format('postgres:5051111', 'localhost:5432', database_name)
+database_path='postgresql://{}@{}/{}'.format('postgres:54321', 'localhost:5432', database_name)
 db=SQLAlchemy()
 
 def setup_db(app, databse_path=database_path):
     app.config['SQLALCHEMY_DATABASE_URI']=database_path
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS']=False
+    app.config['JWT_SECRET_KEY']="super-secret"
+    jwt=JWTManager(app)
     db.app=app
     db.init_app(app)
     db.create_all()
@@ -15,18 +22,24 @@ def setup_db(app, databse_path=database_path):
 class Carro(db.Model):
     __tablename__='carros'
     id=db.Column(db.Integer,primary_key=True)
-    date=db.Column(db.Integer(), nullable=False)
-    placa=db.Column(db.String(6), nullable=False)
-    id_espacio=db.Column(db.Integer, db.ForeignKey('espacios.id'))    
+    date=db.Column(db.Date, default=date.today)
+    placa=db.Column(db.String(7), nullable=False)
+    id_espacio=db.Column(db.Integer, db.ForeignKey('espacios.id'), nullable=False)    
 
     def insert(self):
-        db.session.add(self)
-        db.session.commit()
+        try:
+            db.session.add(self)
+            db.session.commit()
+        except:
+            db.session.rollback()
 
     def delete(self):
-        db.session.delete(self)
-        db.session.commit()
-
+        try:
+            db.session.delete(self)
+            db.session.commit()
+        except:
+            db.session.rollback()
+    
     def format(self):
         return {
             'id': self.id,
@@ -49,7 +62,7 @@ class Espacio(db.Model):
         try:
             db.session.commit()
         except:
-            db.sesion.rollback()
+            db.session.rollback()
         finally:
             db.session.close()
 
@@ -73,7 +86,6 @@ class Registro(db.Model):
         try:
             db.session.add(self)
             db.session.commit()
-            return self.id
         except:
             db.session.rollback()
         finally:
@@ -82,7 +94,7 @@ class Registro(db.Model):
         try:
             db.session.commit()
         except:
-            db.sesion.rollback()
+            db.session.rollback()
         finally:
             db.session.close()
     def delete(self):
@@ -105,27 +117,60 @@ class Registro(db.Model):
         return f'Registro: id={self.id}, usuario={self.usuario}, contra={self.contra}, admin={self.admin}'
 
 class Pago(db.Model):
-    __tablename__='pagos'
-    id=db.Column(db.Integer, primary_key=True)
-    placa=db.Column(db.String(7), nullable=False)
-    monto=db.Column(db.Integer(), nullable=False)
-
+    _tablename_ = 'pagos'
+    id = db.Column(db.Integer, primary_key=True)
+    placa = db.Column(db.String(8), nullable=False)
+    monto = db.Column(db.Integer, nullable=False)
+    
     def insert(self):
         try:
             db.session.add(self)
             db.session.commit()
-            return self.id
         except:
             db.session.rollback()
-        finally:
-            db.session.close()
-            
+    
     def format(self):
-        return jsonify({
-            'id':self.id,
-            'placa':self.placa,
-            'monto':self.monto
-        })
-        
+        return {
+            'id': self.id,
+            'placa': self.placa,
+            'monto': self.monto
+        }
+    
     def _repr_(self):
-        return f'Pago: id={self.id}, placa={self.placa}, monto={self.monto}'
+        return f'Pagos: id={self.id}, placa={self.placa}, monto={self.monto}'
+    
+class Usuario(db.Model):
+    _tablename_ = 'usuarios'
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(20), nullable=False)
+    password = db.Column(db.String(20), nullable=False)
+    
+    def insert(self):
+        try:
+            db.session.add(self)
+            db.session.commit()
+        except:
+            db.session.rollback()
+    
+    def update(self):
+        try:
+            db.session.commit()
+        except:
+            db.session.rollback()
+    
+    def delete(self):
+        try:
+            db.session.delete(self)
+            db.session.commit()
+        except:
+            db.session.rollback()
+    
+    def format(self):
+        return {
+            'id': self.id,
+            'username': self.username,
+            'password': self.password
+        }
+    
+    def _repr_(self):
+        return f'Usuario: id={self.id}, username={self.username}, password={self.password}'
